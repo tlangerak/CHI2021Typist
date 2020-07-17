@@ -31,10 +31,10 @@ if __name__ == "__main__":
     d = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     dtype = torch.double
 
-    nx = 9
+    nx = 18
     nu = 7
 
-    noise_sigma = torch.tensor(0.0001 * torch.eye(nu), device=d, dtype=dtype)
+    noise_sigma = torch.tensor(0.0001 * torch.eye(nu).clone().detach(), device=d, dtype=dtype)
     # noise_sigma = torch.tensor([[10, 0], [0, 10]], device=d, dtype=dtype)
     lambda_ = 1.
 

@@ -39,7 +39,7 @@ class FingerEnv(mujoco_env.MujocoEnv, utils.EzPickle):
                          self.np_random.uniform(low=-0.3, high=0.3, size=1),
                          self.np_random.uniform(low=-1.8, high=0.1, size=1))
             if np.linalg.norm(self.goal) < 2: break
-        qpos[-3:] = self.goal
+        # qpos[-3:] = self.goal
         # qpos[-2:] = self.goal
         # qvel = self.init_qvel + self.np_random.uniform(low=-.005, high=.005, size=self.model.nv)
         qvel = 0.0 * self.init_qvel
@@ -50,6 +50,9 @@ class FingerEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def _get_obs(self):
         return np.concatenate([
+            self.get_body_com("finger0"),
+            self.get_body_com("finger1"),
+            self.get_body_com("finger2"),
             self.get_body_com("fingertip"),
             self.get_body_com("target"),
             self.get_body_com("fingertip") - self.get_body_com("target")

@@ -1,25 +1,27 @@
 global index;
-index.dfX = 1;
-index.dfY = 2;
-index.dfZ = 3;
+index.fX = 1;
+index.fY = 2;
+index.fZ = 3;
+
 index.X = 4;
 index.Y = 5;
 index.Z = 6;
 index.dX = 7;
 index.dY = 8;
 index.dZ = 9;
-index.fX = 10;
-index.fY = 11;
-index.fZ = 12;
 
-
-
-index.inputs=[index.dfX, index.dfY, index.dfZ];
-index.states=[index.X, index.Y, index.Z, index.dX, index.dY, index.dZ, index.fX, index.fY, index.fZ ];
+index.inputs=[index.fX, index.fY, index.fZ];
+index.states=[index.X, index.Y, index.Z, index.dX, index.dY, index.dZ];
 index.init = index.states;
+
 index.XTarget = 1;
 index.YTarget = 2;
 index.ZTarget = 3;
-index.position_weight = 4;
-index.input_weight = 5;
-index.parameters = 5;
+index.position_weight_xy = 4;
+index.input_weight_xy = 5;
+index.position_weight_z = 6;
+index.input_weight_z = 7;
+
+index.x_radius = 8;
+index.y_radius = 9;
+index.parameters = 9;

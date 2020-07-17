@@ -9,7 +9,8 @@ if __name__ == '__main__':
         s = env.reset()
         a = np.array([0, 0, 0, 0, 0, 0, 0], dtype=np.float32)
         while True:
-            # env.reset()
+            print("R")
+            env.reset()
             # print(env.get_body_com("target"))
             # print(env.action_space.shape)
             a = (np.random.rand(*env.action_space.shape) - 0.5) * 1.1

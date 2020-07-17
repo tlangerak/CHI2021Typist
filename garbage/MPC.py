@@ -4,9 +4,6 @@ from scipy import sparse
 from itertools import count
 from utils.MPC_plotter import Plotter
 
-import torch
-
-torch.from_numpy()
 
 def step_sample(desired_force):
     max_motor_units = 10
@@ -17,7 +14,7 @@ def step_sample(desired_force):
                             np.sqrt(max_motor_units * abs(a) * abs(1 - abs(a)))) * average_activation
 
 
-dt = 1e-3  # seconds
+dt = 1e-2 # seconds
 dt2 = dt ** 2
 dt3 = dt ** 3
 m = 0.05  # kilograms

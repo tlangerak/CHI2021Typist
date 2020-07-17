@@ -9,14 +9,11 @@ function f = finger_model(z, model)
         z(index.dX) 
         z(index.dY) 
         z(index.dZ) 
-        z(index.fX) 
-        z(index.fY)
-        z(index.fZ)
         ];
     u = [
-        z(index.dfX)
-        z(index.dfY)
-        z(index.dfZ)
+        z(index.fX)
+        z(index.fY)
+        z(index.fZ)
         ];
         
     ft= model.A*x +  model.B*u;

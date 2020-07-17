@@ -5,6 +5,7 @@ backcall==0.2.0
 barbar==0.2.1
 bleach==3.1.5
 cachetools==4.1.0
+casadi==3.5.1
 certifi==2020.4.5.2
 cffi==1.14.0
 chardet==3.0.4
@@ -47,6 +48,7 @@ matlab==0.1
 matplotlib==3.2.1
 mistune==0.8.4
 monotonic==1.5
+mpc @ file:///C:/Users/thoma/PycharmProjects/fitts_outcome_motor_control/mpc.pytorch
 mujoco-py==1.50.1.68
 nbconvert==5.6.1
 nbformat==5.0.7
@@ -92,6 +94,7 @@ Send2Trash==1.5.0
 setproctitle==1.1.10
 six==1.15.0
 stable-baselines3==0.7.0
+suds-jurko==0.6
 tensorboard==2.2.2
 tensorboard-plugin-wit==1.6.0.post3
 terminado==0.8.3
