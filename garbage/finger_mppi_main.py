@@ -122,7 +122,7 @@ if __name__ == "__main__":
 
     env = gym.envs.make(ENV_NAME)
     env._max_episode_steps = 500
-    env.reset()
+    env.reset_mpcc()
 
     # bootstrap network with random actions
     if BOOT_STRAP_ITER:

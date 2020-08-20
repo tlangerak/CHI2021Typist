@@ -1,7 +1,8 @@
 import sys
 
 sys.path.insert(0, 'C:\\Users\\thoma\PycharmProjects\\fitts_outcome_motor_control\\forces_pro')
-import libs_Intel.win64
+# sys.path.insert(0, 'C:\\Users\\thoma\PycharmProjects\\fitts_outcome_motor_control\\forces_pro\libs_Intel\\win64\\libiomp5md.dll')
+
 import forcespro
 import forcespro.nlp
 import numpy as np
@@ -45,10 +46,29 @@ class FingerController:
                       "theta_input_weight": 27,
                       "variance_weight": 28
                       }
+        # PARAMETERS
+        ## fixed
+        self.m = 3  # mass of model
+        self.h = 3e-2
+        self.w_var = 0
+        self.N = 10
+
+        ## free
+        self.max_motor_units = 100
+        self.average_activation = 0.1
+        self.a = 0.05720652
+        self.b = 0.04969085
+        self.w_contour = 2e3
+        self.w_lag = 4e3
+        self.w_vel = 1e0
+        self.w_input_xy = 1e-6
+        self.w_input_z = 1e-6
+        self.w_input_t = 1e-6
 
         self.dt = 1e-2  # timestep
         self.dt2 = self.dt ** 2
-        self.m = 0.1  # mass of model
+
+        ## MPCC
         self.nStages = 1000  # discretatzion size of spline
         self.fitlength = 100  # how many points are use to fit the ax2+bx+c for the mpcc
         self.fitrange = np.zeros(self.fitlength)
@@ -56,6 +76,8 @@ class FingerController:
         self.theta = np.zeros(self.nStages)  # position on spline
         self.n = 1  # index to take output of mpcc from, starts at 1
         self.p = np.zeros((3, 3))
+
+        ## System
         self.A = np.asarray([
             [1., 0., 0., self.dt, 0., 0., 0, 0],
             [0., 1., 0., 0., self.dt, 0., 0, 0],
@@ -77,27 +99,48 @@ class FingerController:
             [0, 0, 0, self.dt]
         ])
         self.nx, self.nu = np.shape(self.B)  # number of states, number of inputs
-        self.max_motor_units = 10
-        self.average_activation = 0.1
 
+        ## plotting
         plot_length = 100
         self.data_logger_values = ["contour", "lag", "vel", "var", "input_xy", "input_z", "input_t"]
         self.data_logger = {}
         for name in self.data_logger_values:
             self.data_logger[name] = [0.] * plot_length
 
-    def setup(self, rx, ry, rz, generate=False):
+    def calculate_and_set_desired_velocity(self, d, w):
+        ID = np.log2(d / w + 1)
+        movement_time = self.a + self.b * ID
+        self.desired_vel = d / movement_time
+
+    def update_fitts_law(self, a, b, c=None):
+        self.a = a
+        self.b = b
+        if c is not None:
+            self.calculate_and_set_desired_velocity(c[0], c[1])
+
+    def update_user_paras(self, max_motor_units, average_activation, w_contour, w_lag, w_vel,
+                          w_input_xy, w_input_z, w_input_t):
+        self.max_motor_units = max_motor_units
+        self.average_activation = average_activation
+        self.w_contour = w_contour
+        # self.desired_vel = desired_vel
+        self.w_lag = w_lag
+        self.w_vel = w_vel
+        self.w_input_xy = w_input_xy
+        self.w_input_z = w_input_z
+        self.w_input_t = w_input_t
+
+    def setup_mpcc(self, generate=False):
         self.uxmin = [-casadi.inf] * (self.nu + self.nx)
         self.uxmax = [casadi.inf] * (self.nu + self.nx)
-
         self.model = forcespro.nlp.SymbolicModel()
-        self.model.N = 10  # horizon length
+        self.model.N = self.N  # horizon length
         self.model.nvar = self.nx + self.nu  # number of stage variables
         self.model.neq = self.nx  # number of equality constraints
         self.model.npar = 29  # number of runtime parameters
 
-        self.model.objective = self.eval_obj  # eval_obj is a Python function
-        self.model.eq = self.eval_dynamics  # handle to inter-stage function
+        self.model.objective = self.objective  # eval_obj is a Python function
+        self.model.eq = self.system_dynamics  # handle to inter-stage function
         self.model.E = np.concatenate([np.zeros((self.nx, self.nu)), np.eye(self.nx)], axis=1)  # selection matrix
         self.model.ub = np.asarray(self.uxmax)  # simple upper bounds
         self.model.lb = np.asarray(self.uxmin)
@@ -116,36 +159,34 @@ class FingerController:
             codeoptions.overwrite = 1
             self.solver = self.model.generate_solver(codeoptions)
 
-        self.reset()
-
-    def reset(self):
+    def reset_mpcc(self, rxx, ryy, rzz):
         '''
         :return: resets the finger state position to [0]
         '''
-        self.compute_refpositions(rx, ry, rz)
+        self.fit_to_keypoints(rxx, ryy, rzz)
         self.solver = forcespro.nlp.Solver.from_directory("test")
         xi = [0] * (self.nx + self.nu)  # assuming lb and ub are numpy arrays
         self.x0 = np.tile(xi, (self.model.N,))
-        self.xinit = np.asarray([0] * len(self.model.xinitidx))
+        self.xinit = np.asarray([0.] * len(self.model.xinitidx))
 
-    def calculate_mean_variance(self, desired_force):
+    def calculate_mean_variance_force(self, desired_force):
         desired_impulse = desired_force * self.dt
         average_impulse = self.average_activation * self.dt
         a = desired_impulse / (self.max_motor_units * average_impulse)
         mu = self.max_motor_units * a
-        sigma = casadi.sqrt(self.max_motor_units * casadi.fabs(a) *  casadi.fabs(1 -  casadi.fabs(a)))
+        sigma = casadi.sqrt(self.max_motor_units * casadi.fabs(a) * casadi.fabs(1 - casadi.fabs(a)))
         return mu, sigma
 
-    def step_sample(self, desired_force):
+    def sample_force(self, desired_force):
         '''
         :param desired_force: the output desired force of the mpcc
         :return: a force sample around the desired force. Used to add noise to the system
         '''
         average_impulse = self.average_activation * self.dt
-        mu, sigma = self.calculate_mean_variance(desired_force)
+        mu, sigma = self.calculate_mean_variance_force(desired_force)
         return np.random.normal(mu, sigma) * average_impulse / self.dt
 
-    def eval_dynamics(self, z):
+    def system_dynamics(self, z):
         '''
         :param z: list of [actions, states]
         :return: list of states in the next timestep.
@@ -160,7 +201,7 @@ class FingerController:
         tangent_normalized = tangent / casadi.sqrt(casadi.dot(tangent, tangent))
         return tangent_normalized
 
-    def error_contour_lag(self, z, p, slacked=False):
+    def error_contour_lag(self, z, p):
         theta = z[self.index["theta_position"]]
         px = z[self.index['x_position']]
         py = z[self.index['y_position']]
@@ -186,14 +227,6 @@ class FingerController:
         # contour
         contour = r - (lag * tangent_normalized)
         e_contour = casadi.dot(contour, contour)
-
-        if slacked:
-            # pass
-            # delta = 0.5
-            d_radius = casadi.sqrt(e_contour / p[self.index["x_radius"]] ** 2)-1
-            # e_contour = casadi.if_else(d_radius > delta, delta * d_radius ** 2 - 0.5 * delta ** 2, 0.5 * d_radius ** 2)
-            e_contour = casadi.if_else(d_radius > 0, d_radius ** 2, 0)
-
         return e_contour, e_lag
 
     def error_velocity(self, z, p):
@@ -217,23 +250,22 @@ class FingerController:
         input_error_t = z[self.index["theta_acc"]] ** 2
         return input_error_xy, input_error_z, input_error_t
 
+    def error_variance(self, z, p):
+        _, sigma_x = self.calculate_mean_variance_force(z[self.index["x_force"]])
+        _, sigma_y = self.calculate_mean_variance_force(z[self.index["y_force"]])
+        _, sigma_z = self.calculate_mean_variance_force(z[self.index["z_force"]])
+        return sigma_x ** 2 + sigma_y ** 2 + sigma_z ** 2
 
-    def error_variance(self,z, p):
-        _, sigma_x = self.calculate_mean_variance(z[self.index["x_force"]])
-        _, sigma_y = self.calculate_mean_variance(z[self.index["y_force"]])
-        _, sigma_z = self.calculate_mean_variance(z[self.index["z_force"]])
-        return sigma_x**2+sigma_y**2+sigma_z**2
-
-    def eval_obj(self, z, p):
+    def objective(self, z, p):
         '''
         :param z: list of [actions, states]
         :param p: parameters
         :return: the cost of taking an action in a state.
         '''
 
-        e_contour, e_lag = self.error_contour_lag(z, p, slacked=True)
+        e_contour, e_lag = self.error_contour_lag(z, p)
         e_velocity = self.error_velocity(z, p)
-        e_variance = self.error_variance(z,p)
+        e_variance = self.error_variance(z, p)
         e_input_xy, e_input_z, e_input_t = self.error_input(z, p)
         errors = [e_contour, e_lag, e_velocity, e_variance, e_input_xy, e_input_z, e_input_t]
 
@@ -246,24 +278,26 @@ class FingerController:
                p[self.index["variance_weight"]] * e_variance + \
                p[self.index["xy_input_weight"]] * e_input_xy + \
                p[self.index["z_input_weight"]] * e_input_z + \
-               p[self.index["theta_input_weight"]] * e_input_t
+               p[self.index["theta_input_weight"]] * e_input_t - \
+               0.1 * z[self.index["theta_position"]]
 
-    def update_parameters(self, paras, p, dp):
+
+    def update_mpcc_parameters(self, paras, p, dp):
         paras[self.index["px"]] = p[:, 0]
         paras[self.index["py"]] = p[:, 1]
         paras[self.index["pz"]] = p[:, 2]
         paras[self.index["pdx"]] = dp[:, 0]
         paras[self.index["pdy"]] = dp[:, 1]
         paras[self.index["pdz"]] = dp[:, 2]
-        paras[self.index["pv"]] = [0, 0, 3e-2]
+        paras[self.index["pv"]] = [0, 0, self.desired_vel]
         paras[self.index["pdv"]] = [0, 0]
         return paras
 
-    def apply_output(self, system_in, add_noise=False):
+    def apply_mpcc_to_system(self, system_in, add_noise=False):
         if add_noise:
             for i in [self.index["x_force"], self.index["y_force"], self.index["z_force"]]:
-                system_in[i] = self.step_sample(system_in[i])
-        x = self.eval_dynamics(system_in)
+                system_in[i] = self.sample_force(system_in[i])
+        x = self.system_dynamics(system_in)
         return x
 
     def step(self, paras, recalc=True):
@@ -272,10 +306,9 @@ class FingerController:
         :param recalc: update the mpcc if true
         :return: applies output of mpcc (and recalculates it) and noise to a system state
         '''
-
-        p, dp = self.fit_parabola(self.xinit[6])
+        p, dp = self.fit_to_spline(self.xinit[6])
         self.p = p
-        paras = self.update_parameters(paras, p, dp)
+        paras = self.update_mpcc_parameters(paras, p, dp)
         parameters = np.tile(paras, self.model.N)
         if recalc:
             self.n = 1
@@ -291,12 +324,12 @@ class FingerController:
         # print("solver", info.solvetime)
         ux = 'x' + str(self.n).zfill(2)
         mpcc_output = self.output[ux]
-        self.output[ux][self.nu:] = self.apply_output(mpcc_output, add_noise=True)
-        self.eval_obj(self.output[ux], parameters)
+        self.output[ux][self.nu:] = self.apply_mpcc_to_system(mpcc_output, add_noise=True)
+        self.objective(self.output[ux], parameters)
         self.xinit = self.output[ux][self.nu:]
         return self.output[ux][self.nu:]
 
-    def compute_refpositions(self, x, y, z):
+    def fit_to_keypoints(self, x, y, z):
         '''
         :param x: ordered list of x-coordinates
         :param y: ordered list of y-coordinates
@@ -315,7 +348,7 @@ class FingerController:
         self.ref[:, 2] = scipy.interpolate.pchip_interpolate(theta_of_keyframes, keyframes[2, :], theta)
         self.theta = theta
 
-    def fit_parabola(self, t):
+    def fit_to_spline(self, t):
         '''
         :param t: current theta
         :return: parameters of the spline fitted through s(theta) and its derivative.
@@ -341,7 +374,6 @@ class FingerController:
         dp[:, 0] = np.polyder(p[:, 0])
         dp[:, 1] = np.polyder(p[:, 1])
         dp[:, 2] = np.polyder(p[:, 2])
-
         return p, dp
 
     def update_data_logger(self, value, name):
@@ -355,7 +387,7 @@ if __name__ == '__main__':
 
     s = [0, 0, 0]
     m = 1e-2
-    e = [0.00, 2e-2, 0]
+    e = [0.05, 0.05, 0]
     t = [0, finger.nStages / 2, finger.nStages]
 
     # now we create a parabola, to get poitns from, to fit to. This is cumbersome, but easier if change trajectories in the future.
@@ -374,30 +406,30 @@ if __name__ == '__main__':
         ax_i = fig_e.add_subplot(414)
         ax_e = [ax_c, ax_l, ax_t, ax_i]
 
-    finger.setup(rx, ry, rz, False)
+    finger.setup_mpcc(False)
     paras = np.zeros(finger.model.npar)
-    paras[finger.index["x_radius"]] = 3e-3
-    paras[finger.index["y_radius"]] = 2e-3
-    paras[finger.index["contour_weight"]] = 1e2
-    paras[finger.index["lag_weight"]] = 1e5
-    paras[finger.index["xy_input_weight"]] = 1e-1
-    paras[finger.index["z_input_weight"]] = 1e-1
-    paras[finger.index["theta_input_weight"]] = 1e-10
-    paras[finger.index["velocity_weight"]] = 1e1
-    paras[finger.index["variance_weight"]] = 0
+    paras[finger.index["contour_weight"]] = finger.w_contour
+    paras[finger.index["lag_weight"]] = finger.w_lag
+    paras[finger.index["xy_input_weight"]] = finger.w_input_xy
+    paras[finger.index["z_input_weight"]] = finger.w_input_z
+    paras[finger.index["theta_input_weight"]] = finger.w_input_t
+    paras[finger.index["velocity_weight"]] = finger.w_vel
+    paras[finger.index["variance_weight"]] = finger.w_var
 
     xsave = []
     ysave = []
 
     for n in range(100):
-        finger.reset()
+        finger.reset_mpcc(rx, ry, rz)
+        d = 0.0025
+        w = 5e-3
+        finger.calculate_and_set_desired_velocity(d, w)
         print(n)
         for i in count():
-
             xinit = finger.step(paras, recalc=True)
+
             if plotter:
                 t1 = xinit[-2]
-
                 rxt = np.polyval(paras[finger.index["px"]], t1)
                 ryt = np.polyval(paras[finger.index["py"]], t1)
                 rzt = np.polyval(paras[finger.index["pz"]], t1)

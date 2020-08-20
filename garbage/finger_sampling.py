@@ -36,10 +36,10 @@ if __name__ == '__main__':
         fw = csv.writer(f)
         fw.writerow(header)
 
-    s = env.reset()
+    s = env.reset_mpcc()
     a = np.array([0, 0, 0, 0, 0, 0, 0], dtype=np.float32)
     for epoch in count():
-        env.reset()
+        env.reset_mpcc()
         # print(env.get_body_com("target"))
         # print(env.action_space.shape)
         data = []

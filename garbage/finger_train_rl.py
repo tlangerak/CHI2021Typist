@@ -24,11 +24,11 @@ if __name__ == '__main__':
     model = SAC(MlpPolicy, env, verbose=2, tensorboard_log="./SAC_finger")
     model.learn(total_timesteps=30000)
 
-    obs = env.reset()
+    obs = env.reset_mpcc()
 
     while True:
         action, _states = model.predict(obs)
         obs, rewards, dones, info = env.step(action)
         env.render()
         if dones:
-            env.reset()
+            env.reset_mpcc()
