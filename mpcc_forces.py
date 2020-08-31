@@ -1,8 +1,5 @@
 import sys
-
 sys.path.insert(0, 'C:\\Users\\thoma\PycharmProjects\\fitts_outcome_motor_control\\forces_pro')
-# sys.path.insert(0, 'C:\\Users\\thoma\PycharmProjects\\fitts_outcome_motor_control\\forces_pro\libs_Intel\\win64\\libiomp5md.dll')
-
 import forcespro
 import forcespro.nlp
 import numpy as np
@@ -123,7 +120,6 @@ class FingerController:
         self.max_motor_units = max_motor_units
         self.average_activation = average_activation
         self.w_contour = w_contour
-        # self.desired_vel = desired_vel
         self.w_lag = w_lag
         self.w_vel = w_vel
         self.w_input_xy = w_input_xy
@@ -157,6 +153,7 @@ class FingerController:
             codeoptions.nlp.TolIneq = 1E-6
             codeoptions.nlp.TolComp = 1E-6
             codeoptions.overwrite = 1
+            codeoptions.threadSafeStorage = True
             self.solver = self.model.generate_solver(codeoptions)
 
     def reset_mpcc(self, rxx, ryy, rzz):
@@ -281,7 +278,6 @@ class FingerController:
                p[self.index["theta_input_weight"]] * e_input_t - \
                0.1 * z[self.index["theta_position"]]
 
-
     def update_mpcc_parameters(self, paras, p, dp):
         paras[self.index["px"]] = p[:, 0]
         paras[self.index["py"]] = p[:, 1]
@@ -321,12 +317,16 @@ class FingerController:
             assert exitflag == 1, "Some issue with FORCES solver. Exitflag: {}".format(exitflag)
         else:
             self.n += 1
-        # print("solver", info.solvetime)
         ux = 'x' + str(self.n).zfill(2)
         mpcc_output = self.output[ux]
         self.output[ux][self.nu:] = self.apply_mpcc_to_system(mpcc_output, add_noise=True)
         self.objective(self.output[ux], parameters)
         self.xinit = self.output[ux][self.nu:]
+        x0 =[]
+        for n in range(self.model.N):
+            ux = 'x' + str(n+1).zfill(2)
+            x0.append(self.output[ux])
+        self.x0 = x0
         return self.output[ux][self.nu:]
 
     def fit_to_keypoints(self, x, y, z):
@@ -406,7 +406,7 @@ if __name__ == '__main__':
         ax_i = fig_e.add_subplot(414)
         ax_e = [ax_c, ax_l, ax_t, ax_i]
 
-    finger.setup_mpcc(False)
+    finger.setup_mpcc(True)
     paras = np.zeros(finger.model.npar)
     paras[finger.index["contour_weight"]] = finger.w_contour
     paras[finger.index["lag_weight"]] = finger.w_lag
@@ -458,8 +458,8 @@ if __name__ == '__main__':
                 ax.plot(finger.ref[:, 0], finger.ref[:, 1], finger.ref[:, 2])
                 ax.plot(pxt, pyt, pzt)
 
-                ax.set_ylim([0, 0.02])
-                ax.set_xlim([-0.1, 0.1])
+                ax.set_ylim([0, 0.1])
+                ax.set_xlim([0, 0.1])
                 ax.set_zlim([-0.02, 0.02])
 
                 plt.draw()
@@ -469,5 +469,8 @@ if __name__ == '__main__':
                 xsave.append(xinit[0])
                 ysave.append(xinit[1])
                 break
+
+    plt.xlim(0, 0.1)
+    plt.ylim(0, 0.1)
     plt.scatter(xsave, ysave)
     plt.show()

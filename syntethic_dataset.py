@@ -33,7 +33,9 @@ class DataCreator:
                 2e3,
                 4e3,
                 100,
-                0.01, 0.01, 0.01
+                0.01,
+                0.01,
+                0.01
             )
 
             paras = np.zeros(self.finger.model.npar)
@@ -81,5 +83,5 @@ class DataCreator:
 
 if __name__ == '__main__':
     synth = DataCreator(0)
-    # synth.create()
+    synth.create()
     synth.save()
