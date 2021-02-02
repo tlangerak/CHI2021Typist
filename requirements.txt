@@ -5,7 +5,7 @@ attrs==19.3.0
 backcall==0.2.0
 barbar==0.2.1
 bayesian-optimization==1.2.0
-bleach==3.1.5
+bleach==3.3.0
 Brotli==1.0.7
 cachetools==4.1.0
 casadi==3.5.1
