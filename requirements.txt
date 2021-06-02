@@ -133,7 +133,7 @@ tqdm==4.46.1
 traitlets==4.3.3
 traits==6.1.1
 traitsui==7.0.1
-urllib3==1.25.9
+urllib3==1.26.5
 vtk==9.0.1
 wcwidth==0.2.5
 webencodings==0.5.1
