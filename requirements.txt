@@ -61,7 +61,7 @@ Markdown==3.2.2
 MarkupSafe==1.1.1
 matlab==0.1
 matplotlib==3.2.1
-mistune==0.8.4
+mistune==2.0.3
 monotonic==1.5
 mpc @ file:///C:/Users/thoma/PycharmProjects/fitts_outcome_motor_control/mpc.pytorch
 mujoco-py==1.50.1.68
